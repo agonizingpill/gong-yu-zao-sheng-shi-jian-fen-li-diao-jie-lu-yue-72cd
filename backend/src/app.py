@@ -16,6 +16,10 @@ from .constants import ROLES,CASE_STATES,SOURCE_TYPES,BANDS
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(engine)
+    try:
+        from scripts.migrate_cycles import migrate
+        migrate()
+    except Exception as exc:print('CYCLE MIGRATION FAILED:',str(exc))
     if os.getenv('SEED_DEMO','true').lower()=='true':
         try:
             from scripts.seed_demo import seed

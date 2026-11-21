@@ -15,6 +15,8 @@ def create(data:ComplaintInput,db=Depends(session),u=Depends(operator)):return s
 def consent(id:int,data:ConsentInput,db=Depends(session),u=Depends(operator)):return service.consent(db,u,id,data)
 @router.post('/complaints/{id}/reopen')
 def reopen(id:int,data:NoteInput,db=Depends(session),u=Depends(supervisor)):return service.reopen(db,u,id,data.note)
+@router.get('/complaints/{id}/cycles')
+def cycles(id:int,db=Depends(session),u=Depends(current)):return service.list_cycles(db,id)
 @router.get('/clock')
 def clock(db=Depends(session),u=Depends(current)):return {'at':now(db)}
 @router.post('/clock')

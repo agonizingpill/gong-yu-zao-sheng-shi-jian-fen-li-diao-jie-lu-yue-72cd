@@ -2,6 +2,16 @@ from datetime import datetime
 from sqlalchemy import String,Text,Float,Integer,Boolean,DateTime,ForeignKey,JSON,UniqueConstraint,CheckConstraint
 from sqlalchemy.orm import Mapped,mapped_column
 from .database import Base
+class FulfillmentCycle(Base):
+    __tablename__='fulfillment_cycles'
+    __table_args__=(UniqueConstraint('complaint_id','seq',name='cycle_seq_per_case'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    seq:Mapped[int]=mapped_column(Integer)
+    state:Mapped[str]=mapped_column(String(20),default='active')
+    reopen_note:Mapped[str]=mapped_column(String(400),default='')
+    opened_at:Mapped[datetime]=mapped_column(DateTime)
+    closed_at:Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
 class User(Base):
     __tablename__='users'
     id:Mapped[int]=mapped_column(primary_key=True)
@@ -36,6 +46,7 @@ class NoiseEvent(Base):
     __table_args__=(UniqueConstraint('complaint_id','measured_at','position',name='event_same_window'),CheckConstraint('duration_s > 0',name='duration_positive'))
     id:Mapped[int]=mapped_column(primary_key=True)
     complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    cycle_id:Mapped[int]=mapped_column(ForeignKey('fulfillment_cycles.id'))
     measured_at:Mapped[datetime]=mapped_column(DateTime)
     position:Mapped[str]=mapped_column(String(60))
     duration_s:Mapped[int]=mapped_column(Integer)
@@ -46,6 +57,7 @@ class Separation(Base):
     __tablename__='separations'
     id:Mapped[int]=mapped_column(primary_key=True)
     complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    cycle_id:Mapped[int]=mapped_column(ForeignKey('fulfillment_cycles.id'))
     state:Mapped[str]=mapped_column(String(20),default='queued')
     event_ids:Mapped[list]=mapped_column(JSON)
     result:Mapped[dict|None]=mapped_column(JSON,nullable=True)
@@ -54,6 +66,7 @@ class Attribution(Base):
     __tablename__='attributions'
     id:Mapped[int]=mapped_column(primary_key=True)
     complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    cycle_id:Mapped[int]=mapped_column(ForeignKey('fulfillment_cycles.id'))
     separation_id:Mapped[int]=mapped_column(ForeignKey('separations.id'),unique=True)
     source:Mapped[str]=mapped_column(String(30))
     evidence:Mapped[str]=mapped_column(String(500))
@@ -63,6 +76,7 @@ class Agreement(Base):
     __table_args__=(CheckConstraint('threshold > 0',name='positive_threshold'),)
     id:Mapped[int]=mapped_column(primary_key=True)
     complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    cycle_id:Mapped[int]=mapped_column(ForeignKey('fulfillment_cycles.id'))
     attribution_id:Mapped[int]=mapped_column(ForeignKey('attributions.id'))
     party_a:Mapped[str]=mapped_column(String(40))
     party_b:Mapped[str]=mapped_column(String(40))
@@ -108,6 +122,7 @@ class Closure(Base):
     __tablename__='closures'
     id:Mapped[int]=mapped_column(primary_key=True)
     complaint_id:Mapped[int]=mapped_column(ForeignKey('complaints.id'))
+    cycle_id:Mapped[int]=mapped_column(ForeignKey('fulfillment_cycles.id'))
     agreement_id:Mapped[int]=mapped_column(ForeignKey('agreements.id'),unique=True)
     note:Mapped[str]=mapped_column(String(400))
     closed_at:Mapped[datetime]=mapped_column(DateTime)

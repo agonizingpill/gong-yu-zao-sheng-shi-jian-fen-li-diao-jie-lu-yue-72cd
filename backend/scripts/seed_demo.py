@@ -1,7 +1,7 @@
 from datetime import datetime,timedelta
 from sqlalchemy import select,func
 from src.database import Base,engine,Session
-from src.models import User,DemoClock,Complaint,NoiseEvent
+from src.models import User,DemoClock,Complaint,NoiseEvent,FulfillmentCycle
 from src.auth import password_hash
 
 def seed():
@@ -15,12 +15,13 @@ def seed():
         for code,alias,building,summary,consent in items:
             if not db.scalar(select(Complaint).where(Complaint.code==code)):
                 c=Complaint(code=code,alias=alias,building=building,summary=summary,consent=consent,consent_note='书面授权QTC-031' if consent else '待取得授权');db.add(c);db.flush()
+                cyc=FulfillmentCycle(complaint_id=c.id,seq=1,state='active',reopen_note='首次建卷',opened_at=datetime(2026,11,18,16,0));db.add(cyc);db.flush()
                 if consent:
                     for j in range(6):
                         energy=[8+j*.1,6,1.6,.5,.3,.2,.1,.05] if code=='QT031' else [.2,.3,.8,3,6+j*.1,7,4,1]
-                        db.add(NoiseEvent(complaint_id=c.id,measured_at=datetime(2026,11,17,22,30)+timedelta(minutes=j*5),position='窗台测点A',duration_s=60,energies=energy,total=sum(energy),note='合成频带示例，无录音及真实住户信息'))
+                        db.add(NoiseEvent(complaint_id=c.id,cycle_id=cyc.id,measured_at=datetime(2026,11,17,22,30)+timedelta(minutes=j*5),position='窗台测点A',duration_s=60,energies=energy,total=sum(energy),note='合成频带示例，无录音及真实住户信息'))
         db.commit()
-        counts={m.__tablename__:db.scalar(select(func.count()).select_from(m)) for m in (User,Complaint,NoiseEvent,DemoClock)}
+        counts={m.__tablename__:db.scalar(select(func.count()).select_from(m)) for m in (User,Complaint,NoiseEvent,FulfillmentCycle,DemoClock)}
         print(counts)
         return counts
 if __name__=='__main__':seed()

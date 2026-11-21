@@ -11,7 +11,7 @@
 3. **成分与人工归因**：真实worker完成NMF；新事件令旧快照不能再用于首次人工确认。只有主管能登记现场归因。
 4. **双方时段协议**：归因确认后起草，指定两位参与方、跨午夜静音窗、阈值和观察天数。双方纸质签字凭据齐全才能由主管生效。
 5. **整改和复验**：责任方须属于协议。所有整改交付后，静音时段的新事件才可作为复验；不允许旧事件或白天低值充数。
-6. **履约与匿名结案**：复发自动重开整改、取消旧观察期；补做整改复验、主管处理复发后重启观察。到期且无未处理复发才结案；结案后可主管重开并保留旧链。
+6. **履约与匿名结案**：复发自动重开整改、取消旧观察期；补做整改复验、主管处理复发后重启观察。到期且无未处理复发才结案；结案后可主管重开并保留旧链。**重开即开启新的履约周期（fulfillment cycle）**：旧协议、整改、复验、复发与结案记录继续可查，却冻结在历史周期，不能成为新周期的归因、整改或结案依据；重开后新增事件只进入新周期分离，只有新的人工归因才能起草新协议。重开与新事件/新协议并发时一律按最新周期裁决，重试不会重复建周期或覆盖旧链；履约页面区分当前周期与历史周期。
 
 |角色|账号|页面与权限|典型动作|
 |---|---|---|---|
@@ -51,9 +51,9 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 ## 结构与本地开发
 
-`backend/src/models.py` 是投诉/事件/归因/协议/签字/整改/复验/复发/结案关系；case/evidence/agreement/resolution服务分别处理业务，routes只解析请求与授权；两层中间件负责追踪及限流；全局约束错误409。`frontend/src/pages/` 每页负责一种工作任务，`components/common.js` 共享卷宗条、协议条、频带图与成分条，api/store/utils分别负责请求、选卷状态和格式/下载。
+`backend/src/models.py` 是投诉/履约周期/事件/归因/协议/签字/整改/复验/复发/结案关系；`fulfillment_cycles` 为周期根，事件、分离、归因、协议与结案均带 `cycle_id`，同卷父行锁配合“最新周期即当前周期”裁决，保证重开后的写入只进新周期。case/evidence/agreement/resolution服务分别处理业务，routes只解析请求与授权；两层中间件负责追踪及限流；全局约束错误409。`frontend/src/pages/` 每页负责一种工作任务，`components/common.js` 共享卷宗条、协议条、周期徽标、频带图与成分条，api/store/utils分别负责请求、选卷与周期状态、格式/下载。
 
-本地Python3.12虚拟环境安装backend/requirements.txt，设置 `DATABASE_URL`（MySQL8），`REDIS_URL` 后在backend目录执行 `uvicorn src.app:app --reload`；前端可用Nginx配置同源代理或直接build容器。初始schema见 `backend/migrations/001_schema.md`，create_all不会自动升级已有列。
+本地Python3.12虚拟环境安装backend/requirements.txt，设置 `DATABASE_URL`（MySQL8），`REDIS_URL` 后在backend目录执行 `uvicorn src.app:app --reload`；前端可用Nginx配置同源代理或直接build容器。初始schema见 `backend/migrations/001_schema.md`，履约周期升级见 `backend/migrations/002_cycles.md`（应用启动自动执行幂等迁移 `scripts/migrate_cycles.py`，也可手动运行），create_all不会自动升级已有列。
 
 环境变量：`FRONTEND_PORT`18239、`BACKEND_PORT`19239、`DB_PORT`17739、`COMPOSE_PROJECT_NAME`quiet-mediation、`COMPOSE_SUBNET`10.221.40.0/24、`SEED_DEMO`true、`JWT_SECRET`仅演示默认，部署时自行替换。数据库/Redis/artifacts均用命名卷。所有时间为无时区演示本地时间；主管可向前推进独立演示时钟，真实生产需换可信服务器时钟。
 

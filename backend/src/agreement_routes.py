@@ -2,16 +2,18 @@ from fastapi import APIRouter,Depends
 from sqlalchemy import select
 from .database import session
 from .auth import current,operator,supervisor
-from .models import Agreement,Signature,Remedy,Recheck,Breach,Closure
+from .models import Agreement,Signature,Remedy,Recheck,Breach,Closure,FulfillmentCycle
 from .common import dump,get
 from .agreement_schemas import AgreementInput,SignatureInput,RemedyInput,ReceiptInput,RecheckInput,ResolutionInput
 from .case_schemas import NoteInput
 from . import agreement_service as service,resolution_service as resolution
 router=APIRouter()
 @router.get('/complaints/{id}/agreements')
-def agreements(id:int,db=Depends(session),u=Depends(current)):
-    rows=db.scalars(select(Agreement).where(Agreement.complaint_id==id).order_by(Agreement.id.desc())).all()
-    return [{**dump(a),'signatures':[dump(s) for s in db.scalars(select(Signature).where(Signature.agreement_id==a.id))]} for a in rows]
+def agreements(id:int,cycle_id:int|None=None,db=Depends(session),u=Depends(current)):
+    stmt=select(Agreement).where(Agreement.complaint_id==id)
+    if cycle_id is not None:stmt=stmt.where(Agreement.cycle_id==cycle_id)
+    rows=db.scalars(stmt.order_by(Agreement.id.desc())).all()
+    return [{**dump(a),'cycle_seq':db.get(FulfillmentCycle,a.cycle_id).seq,'signatures':[dump(s) for s in db.scalars(select(Signature).where(Signature.agreement_id==a.id))]} for a in rows]
 @router.post('/complaints/{id}/agreements')
 def draft(id:int,data:AgreementInput,db=Depends(session),u=Depends(supervisor)):return service.create_agreement(db,u,id,data)
 @router.post('/agreements/{id}/signatures')
@@ -39,4 +41,6 @@ def observe(id:int,db=Depends(session),u=Depends(supervisor)):return resolution.
 @router.post('/agreements/{id}/close')
 def close(id:int,data:NoteInput,db=Depends(session),u=Depends(supervisor)):return resolution.close(db,u,id,data.note)
 @router.get('/complaints/{id}/closures')
-def closures(id:int,db=Depends(session),u=Depends(current)):return [dump(r) for r in db.scalars(select(Closure).where(Closure.complaint_id==id))]
+def closures(id:int,db=Depends(session),u=Depends(current)):
+    rows=db.scalars(select(Closure).where(Closure.complaint_id==id).order_by(Closure.id)).all()
+    return [{**dump(r),'cycle_seq':db.get(FulfillmentCycle,r.cycle_id).seq} for r in rows]

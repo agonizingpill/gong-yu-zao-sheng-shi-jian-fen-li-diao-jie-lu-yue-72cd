@@ -1,7 +1,7 @@
 from datetime import timedelta
 from sqlalchemy import select
-from .models import Remedy,Recheck,NoiseEvent,Breach,Closure
-from .common import require,lock_agreement,get,record,dump,now,within_window
+from .models import Remedy,Recheck,NoiseEvent,Breach,Closure,FulfillmentCycle
+from .common import require,lock_agreement,get,record,dump,now,within_window,get_cycle
 
 def completed(db,a):
     tasks=db.scalars(select(Remedy).where(Remedy.agreement_id==a.id)).all()
@@ -12,6 +12,7 @@ def recheck(db,user,id,data):
     case,a=lock_agreement(db,id);require(a.state in ('active','breached'),'当前不可登记复验')
     tasks=completed(db,a);e=get(db,NoiseEvent,data.event_id)
     require(e.complaint_id==case.id,'复验事件必须属于本卷')
+    require(e.cycle_id==a.cycle_id,'历史周期事件不能充当当前周期复验')
     require(e.measured_at>max(t.completed_at for t in tasks),'复验必须在最后一项整改完成之后')
     require(within_window(e.measured_at,a),'复验必须覆盖协议静音时段')
     require(not db.scalar(select(Recheck).where(Recheck.event_id==e.id)),'该事件已用作复验')
@@ -37,5 +38,10 @@ def close(db,user,id,note):
     case,a=lock_agreement(db,id);require(a.state=='observing','协议须处于观察期')
     require(now(db)>=a.observation_until,'观察期尚未结束，请到期后复核结案')
     require(not db.scalar(select(Breach).where(Breach.agreement_id==id,Breach.resolved==False)),'复发未解决，不能结案');completed(db,a)
-    row=Closure(complaint_id=case.id,agreement_id=id,note=note,closed_at=now(db));db.add(row);a.state='fulfilled';case.status='closed'
-    record(db,user,'complaint.close',case.id,note);db.commit();return dump(row)
+    cyc=get_cycle(db,a.cycle_id)
+    require(cyc.state=='active','当前履约周期已结案')
+    row=Closure(complaint_id=case.id,cycle_id=cyc.id,agreement_id=id,note=note,closed_at=now(db));db.add(row)
+    a.state='fulfilled';case.status='closed'
+    # 关闭当前周期；其协议、整改、复验、结案全部冻结为历史链。
+    cyc.state='closed';cyc.closed_at=now(db)
+    record(db,user,'complaint.close',case.id,f'cycle={cyc.seq};{note}');db.commit();return dump(row)
